@@ -93,8 +93,10 @@ func (this *Reqtifier) Do(req *Request) (*http.Response, error) {
 		r.Header.Add(key, value)
 	}
 
-	// override content-type
-	r.Header.Add("Content-Type", bodytype)
+	// override content-type header, if one was explicitly specified
+	if bodytype != "" {
+		r.Header.Add("Content-Type", bodytype)
+	}
 
 	// Add cookies
 	for _, cookie := range req.Cookies {
