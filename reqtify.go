@@ -121,14 +121,6 @@ func (this *Reqtifier) Do(req *Request) (*http.Response, error) {
 		}
 	}
 
-	// Handling HTTP Error
-	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		return resp, &ResponseError{
-			StatusCode: resp.StatusCode,
-			StatusText: resp.Status,
-		}
-	}
-
 	// OK
 	return resp, nil
 }
