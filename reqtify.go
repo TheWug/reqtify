@@ -44,7 +44,6 @@ type Reqtifier struct {
 type Request struct {
 	Path           string
 	Verb           HttpVerb
-	Response       interface{}
 	QueryParams    url.Values
 	FormParams     url.Values
 	AutoParams     url.Values
@@ -52,6 +51,9 @@ type Request struct {
 	Headers        map[string]string
 	Cookies     []*http.Cookie
 	ForceMultipart bool
+
+	Response       interface{}
+
 	ReqClient     *Reqtifier
 }
 
