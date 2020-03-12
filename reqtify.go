@@ -49,6 +49,8 @@ type Request struct {
 	AutoParams     url.Values
 	FormFiles      map[string][]FormFile
 	Headers        map[string]string
+	BasicUser      string
+	BasicPassword  string
 	Cookies     []*http.Cookie
 	ForceMultipart bool
 
@@ -98,6 +100,11 @@ func (this *Reqtifier) Do(req *Request) (*http.Response, error) {
 	// override content-type header, if one was explicitly specified
 	if bodytype != "" {
 		r.Header.Add("Content-Type", bodytype)
+	}
+
+	// override authentication with HTTP basic auth, if specified
+	if (req.BasicUser != "" || req.BasicPassword != "") {
+		r.SetBasicAuth(req.BasicUser, req.BasicPassword)
 	}
 
 	// Add cookies
@@ -232,6 +239,12 @@ func (this *Request) Header(key, value string) (*Request) {
 
 func (this *Request) Cookie(c *http.Cookie) (*Request) {
 	this.Cookies = append(this.Cookies, c)
+	return this
+}
+
+func (this *Request) BasicAuthentication(user, password string) (*Request) {
+	this.BasicUser = user
+	this.BasicPassword = password
 	return this
 }
 
