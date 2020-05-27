@@ -57,7 +57,7 @@ type Request struct {
 	Cookies     []*http.Cookie
 	ForceMultipart bool
 
-	Response       interface{}
+	Response     []interface{}
 
 	ReqClient     *Reqtifier
 }
@@ -121,13 +121,20 @@ func (this *Reqtifier) Do(req *Request) (*http.Response, error) {
 	}
 
 	// Packing into response, if we have one
-	if req.Response != nil {
+	if len(req.Response)!= 0 {
 		body, err := ioutil.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
 			return nil, err
 		}
-		err = json.Unmarshal(body, req.Response)
+		for i, response := range req.Response {
+			e := json.Unmarshal(body, response)
+			if i == 0 {
+				err = e
+			} else if err != nil {
+				err = e
+			}
+		}
 		if err != nil {
 			return resp, err
 		}
@@ -190,7 +197,7 @@ func (this *Request) Method(v HttpVerb) (*Request) {
 }
 
 func (this *Request) Into(into interface{}) (*Request) {
-	this.Response = into
+	this.Response = append(this.Response, into)
 	return this
 }
 
