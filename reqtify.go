@@ -8,6 +8,9 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"strings"
+	"strconv"
+	"fmt"
+	"log"
 )
 
 type HttpVerb string
@@ -191,18 +194,65 @@ func (this *Request) Into(into interface{}) (*Request) {
 	return this
 }
 
-func (this *Request) Arg(key, value string) (*Request) {
-	this.AutoParams.Add(key, value)
+func stringify(i interface{}) (string, bool) {
+	if i == nil { return "", false }
+
+	switch x := i.(type) {
+	case string:
+		return x, true
+	case *string:
+		if x == nil { return "", false }
+		return *x, true
+	case int:
+		return strconv.Itoa(x), true
+	case *int:
+		if x == nil { return "", false }
+		return strconv.Itoa(*x), true
+	case int64:
+		return strconv.FormatInt(x, 10), true
+	case *int64:
+		if x == nil { return "", false }
+		return strconv.FormatInt(*x, 10), true
+	case float32:
+		return strconv.FormatFloat(float64(x), 'f', -1, 32), true
+	case *float32:
+		if x == nil { return "", false }
+		return strconv.FormatFloat(float64(*x), 'f', -1, 32), true
+	case float64:
+		return strconv.FormatFloat(x, 'f', -1, 64), true
+	case *float64:
+		if x == nil { return "", false }
+		return strconv.FormatFloat(*x, 'f', -1, 64), true
+	case bool:
+		return strconv.FormatBool(x), true
+	case *bool:
+		if x == nil { return "", false }
+		return strconv.FormatBool(*x), true
+	default:
+		if x, ok := i.(fmt.Stringer); ok {
+			if x == nil { return "", false }
+			return x.String(), true
+		}
+		panic(fmt.Sprintf("Couldn't convert value to string: %+v", i))
+	}
+}
+
+// for Arg, URLArg, and FormArg, the value will always be converted to a string and included among the keys.
+func (this *Request) Arg(key string, value interface{}) (*Request) {
+	v, present := stringify(value)
+	if present { this.AutoParams.Add(key, v) }
 	return this
 }
 
-func (this *Request) URLArg(key, value string) (*Request) {
-	this.QueryParams.Add(key, value)
+func (this *Request) URLArg(key string, value interface{}) (*Request) {
+	v, present := stringify(value)
+	if present { this.QueryParams.Add(key, v) }
 	return this
 }
 
-func (this *Request) FormArg(key, value string) (*Request) {
-	this.FormParams.Add(key, value)
+func (this *Request) FormArg(key string, value interface{}) (*Request) {
+	v, present := stringify(value)
+	if present { this.FormParams.Add(key, v) }
 	return this
 }
 
@@ -211,23 +261,29 @@ func (this *Request) FileArg(key, filename string, data io.Reader) (*Request) {
 	return this
 }
 
-func (this *Request) ArgDefault(key, value, def string) (*Request) {
+func (this *Request) ArgDefault(key string, value, def interface{}) (*Request) {
 	if value != def {
-		this.AutoParams.Add(key, value)
+		if str, present := stringify(value); present && str != def {
+			this.AutoParams.Add(key, str)
+		}
 	}
 	return this
 }
 
-func (this *Request) URLArgDefault(key, value, def string) (*Request) {
+func (this *Request) URLArgDefault(key string, value, def interface{}) (*Request) {
 	if value != def {
-		this.QueryParams.Add(key, value)
+		if str, present := stringify(value); present && str != def {
+			this.QueryParams.Add(key, str)
+		}
 	}
 	return this
 }
 
-func (this *Request) FormArgDefault(key, value, def string) (*Request) {
+func (this *Request) FormArgDefault(key string, value, def interface{}) (*Request) {
 	if value != def {
-		this.FormParams.Add(key, value)
+		if str, present := stringify(value); present && str != def {
+			this.FormParams.Add(key, str)
+		}
 	}
 	return this
 }
@@ -272,6 +328,11 @@ func (this *Request) URL() (string) {
 	}
 
 	return callURL
+}
+
+func (this *Request) DebugPrint() (*Request) {
+	log.Printf("Request:\n%+v\n", *this)
+	return this
 }
 
 func (this *Request) Do() (*http.Response, error) {
