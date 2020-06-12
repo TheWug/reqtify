@@ -342,6 +342,8 @@ func (this *Request) DebugPrint() (*Request) {
 	return this
 }
 
+// Call this function to execute the call.
+// it can return a nil response if an error occurs.
 func (this *Request) Do() (*http.Response, error) {
 	if len(this.ReqClient.AgentName) != 0 {
 	        this.Header("User-Agent", this.ReqClient.AgentName)
