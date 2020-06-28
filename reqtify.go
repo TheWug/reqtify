@@ -122,26 +122,22 @@ func (this *Reqtifier) Do(req *Request) (*http.Response, error) {
 
 	// Packing into response, if we have one
 	if len(req.Response)!= 0 {
-		body, err := ioutil.ReadAll(resp.Body)
+		var body []byte
+		body, err = ioutil.ReadAll(resp.Body)
 		defer resp.Body.Close()
 		if err != nil {
 			return nil, err
 		}
-		for i, response := range req.Response {
-			e := json.Unmarshal(body, response)
-			if i == 0 {
-				err = e
-			} else if err != nil {
+		for _, response := range req.Response {
+			e := response.Unmarshal(body)
+			if err != nil {
 				err = e
 			}
 		}
-		if err != nil {
-			return resp, err
-		}
 	}
 
-	// OK
-	return resp, nil
+	// OK, though err might not be nil if there is a marshalling error
+	return resp, err
 }
 
 func (this *Reqtifier) New(endpoint string) (*Request) {
