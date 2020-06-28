@@ -230,6 +230,11 @@ func stringify(i interface{}) (string, bool) {
 	case *float64:
 		if x == nil { return "", false }
 		return strconv.FormatFloat(*x, 'f', -1, 64), true
+	case rune:
+		return string(x), true
+	case *rune:
+		if x == nil { return "", false }
+		return string(*x), true
 	case bool:
 		return strconv.FormatBool(x), true
 	case *bool:
@@ -244,23 +249,25 @@ func stringify(i interface{}) (string, bool) {
 	}
 }
 
-// for Arg, URLArg, and FormArg, the value will always be converted to a string and included among the keys.
+// for Arg, URLArg, and FormArg, the value will be converted to a string and included among the keys.
+// the following types are supported, and have the following behavior:
+//   string: included verbatim.
+//   int, int64, rune, float32, float64: converted to string and included verbatim.
+//   bool: converted to "true" or "false".
+//   pointers to any of the above: omitted if nil, otherwise dereferenced, converted to string, and included.
+//   fmt.Stringer: omitted if nil, otherwise .String() is called, and output included verbatim.
+//   anything else: panic is called.
+
 func (this *Request) Arg(key string, value interface{}) (*Request) {
-	v, present := stringify(value)
-	if present { this.AutoParams.Add(key, v) }
-	return this
+	return this.argDefaultHelper(key, value, nil, this.AutoParams)
 }
 
 func (this *Request) URLArg(key string, value interface{}) (*Request) {
-	v, present := stringify(value)
-	if present { this.QueryParams.Add(key, v) }
-	return this
+	return this.argDefaultHelper(key, value, nil, this.QueryParams)
 }
 
 func (this *Request) FormArg(key string, value interface{}) (*Request) {
-	v, present := stringify(value)
-	if present { this.FormParams.Add(key, v) }
-	return this
+	return this.argDefaultHelper(key, value, nil, this.FormParams)
 }
 
 func (this *Request) FileArg(key, filename string, data io.Reader) (*Request) {
@@ -268,28 +275,26 @@ func (this *Request) FileArg(key, filename string, data io.Reader) (*Request) {
 	return this
 }
 
+// for ArgDefault, URLArgDefault, and FormArgDefault, in addition to omitting the argument
+// if nil is passed (see above), it is also omitted if it matches a provided default value,
+// or if the converted string matches that value (so 3 will match a default of either 3, or "3")
+
 func (this *Request) ArgDefault(key string, value, def interface{}) (*Request) {
-	if value != def {
-		if str, present := stringify(value); present && str != def {
-			this.AutoParams.Add(key, str)
-		}
-	}
-	return this
+	return this.argDefaultHelper(key, value, def, this.AutoParams)
 }
 
 func (this *Request) URLArgDefault(key string, value, def interface{}) (*Request) {
-	if value != def {
-		if str, present := stringify(value); present && str != def {
-			this.QueryParams.Add(key, str)
-		}
-	}
-	return this
+	return this.argDefaultHelper(key, value, def, this.QueryParams)
 }
 
 func (this *Request) FormArgDefault(key string, value, def interface{}) (*Request) {
+	return this.argDefaultHelper(key, value, def, this.FormParams)
+}
+
+func (this *Request) argDefaultHelper(key string, value, def interface{}, values url.Values) (*Request) {
 	if value != def {
 		if str, present := stringify(value); present && str != def {
-			this.FormParams.Add(key, str)
+			values.Add(key, str)
 		}
 	}
 	return this
