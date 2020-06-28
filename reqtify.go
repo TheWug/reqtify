@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"io/ioutil"
 	"encoding/json"
+	"encoding/xml"
 	"strings"
 	"strconv"
 	"fmt"
@@ -44,6 +45,34 @@ type Reqtifier struct {
 	AgentName    string
 }
 
+type ResponseUnmarshaller interface {
+	Unmarshal([]byte) error
+}
+
+type JSONUnmarshaller struct {
+	output_value interface{}
+}
+
+func (this JSONUnmarshaller) Unmarshal(body []byte) error {
+	return json.Unmarshal(body, this.output_value)
+}
+
+func FromJSON(output_value interface{}) ResponseUnmarshaller {
+	return JSONUnmarshaller{output_value: output_value}
+}
+
+type XMLUnmarshaller struct {
+	output_value interface{}
+}
+
+func (this XMLUnmarshaller) Unmarshal(body []byte) error {
+	return xml.Unmarshal(body, this.output_value)
+}
+
+func FromXML(output_value interface{}) ResponseUnmarshaller {
+	return XMLUnmarshaller{output_value: output_value}
+}
+
 type Request struct {
 	Path           string
 	Verb           HttpVerb
@@ -57,7 +86,7 @@ type Request struct {
 	Cookies     []*http.Cookie
 	ForceMultipart bool
 
-	Response     []interface{}
+	Response     []ResponseUnmarshaller
 
 	ReqClient     *Reqtifier
 }
@@ -192,8 +221,18 @@ func (this *Request) Method(v HttpVerb) (*Request) {
 	return this
 }
 
-func (this *Request) Into(into interface{}) (*Request) {
+func (this *Request) Into(into ResponseUnmarshaller) (*Request) {
 	this.Response = append(this.Response, into)
+	return this
+}
+
+func (this *Request) JSONInto(into interface{}) (*Request) {
+	this.Response = append(this.Response, FromJSON(into))
+	return this
+}
+
+func (this *Request) XMLInto(into interface{}) (*Request) {
+	this.Response = append(this.Response, FromXML(into))
 	return this
 }
 
