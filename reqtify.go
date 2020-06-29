@@ -73,6 +73,11 @@ func FromXML(output_value interface{}) ResponseUnmarshaller {
 	return XMLUnmarshaller{output_value: output_value}
 }
 
+type cachedBody struct {
+	body   []byte
+	mimetype string
+}
+
 type Request struct {
 	Path           string
 	Verb           HttpVerb
@@ -89,6 +94,8 @@ type Request struct {
 	Response     []ResponseUnmarshaller
 
 	ReqClient     *Reqtifier
+
+	body          *cachedBody
 }
 
 func New(root string, rl *time.Ticker, client *http.Client, lc func(*Request) (error), agent string) (Reqtifier) {
@@ -183,7 +190,10 @@ func (this *Reqtifier) New(endpoint string) (*Request) {
 }
 
 func (this *Request) GetBody() (io.Reader, string) {
-	if this.ForceMultipart || len(this.FormFiles) != 0 {
+	if this.body != nil {
+		// if we've resolved the body already, re-use it.
+		return &readOnlyReader{buffer: this.body.body}, this.body.mimetype
+	} else if this.ForceMultipart || len(this.FormFiles) != 0 {
 		var m multipartRequestBody
 		for k, va := range this.FormParams {
 			for _, v := range va {
@@ -377,8 +387,22 @@ func (this *Request) URL() (string) {
 	return callURL
 }
 
+// you should not call any other functions which mutate the request object
+// after calling this function. It will resolve the request body to a byte
+// array and store it, and GetBody() will return the stored one later, rather
+// than re-resolving it. This is done because the body may be constructed from
+// external io.Readers which can't be seeked or re-read, only read once.
 func (this *Request) DebugPrint() (*Request) {
-	log.Printf("Request:\n%+v\n", *this)
+	reader, mimetype := this.GetBody()
+	body, err := ioutil.ReadAll(reader)
+	if err != nil { panic("Error reading request body: " + err.Error()) }
+
+	this.body = &cachedBody{
+		body: body,
+		mimetype: mimetype,
+	}
+
+	log.Printf("Request URL: %s\nUser agent: %s\nOther request headers: %+v\nRequest body:\n%s\n\n", this.URL(), this.ReqClient.AgentName, this.Headers, string(body))
 	return this
 }
 
