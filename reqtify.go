@@ -380,7 +380,7 @@ func (this *Request) Target() (string) {
 }
 
 func (this *Request) URL() (string) {
-	callURL := this.ReqClient.Root + this.URLPath
+	callURL := this.Target()
 	params := this.QueryParams.Encode()
 	if len(this.AutoParams) != 0 && this.Verb == GET {
 		if len(params) != 0 {
