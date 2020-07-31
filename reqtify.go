@@ -38,14 +38,44 @@ func (r *ResponseError) Error() string {
 }
 
 type Reqtifier interface {
-	New(string) (*Request)
+	New(string) (Request)
+}
+
+type Request interface {
+	Do() (*http.Response, error)
+
+	Method(v HttpVerb) (Request)
+	Path(path string) (Request)
+	Header(key, value string) (Request)
+	Cookie(c *http.Cookie) (Request)
+	BasicAuthentication(user, password string) (Request)
+	Multipart() (Request)
+
+	Arg(key string, value interface{}) (Request)
+	URLArg(key string, value interface{}) (Request)
+	FormArg(key string, value interface{}) (Request)
+	FileArg(key, filename string, data io.Reader) (Request)
+
+	ArgDefault(key string, value, def interface{}) (Request)
+	URLArgDefault(key string, value, def interface{}) (Request)
+	FormArgDefault(key string, value, def interface{}) (Request)
+
+	Into(into ResponseUnmarshaller) (Request)
+	JSONInto(into interface{}) (Request)
+	XMLInto(into interface{}) (Request)
+
+	DebugPrint() (Request)
+	GetBody() (io.Reader, string)
+
+	Target() (string)
+	URL() (string)
 }
 
 type ReqtifierImpl struct {
 	Root         string
 	RateLimiter *time.Ticker
 	HttpClient  *http.Client
-	LastChance   func(*Request) error
+	LastChance   func(Request) error
 	AgentName    string
 }
 
@@ -82,7 +112,7 @@ type cachedBody struct {
 	mimetype string
 }
 
-type Request struct {
+type RequestImpl struct {
 	URLPath        string
 	Verb           HttpVerb
 	QueryParams    url.Values
@@ -102,7 +132,7 @@ type Request struct {
 	body          *cachedBody
 }
 
-func New(root string, rl *time.Ticker, client *http.Client, lc func(*Request) (error), agent string) (Reqtifier) {
+func New(root string, rl *time.Ticker, client *http.Client, lc func(Request) (error), agent string) (Reqtifier) {
 	r := ReqtifierImpl{
 		Root: root,
 		RateLimiter: rl,
@@ -118,7 +148,7 @@ func New(root string, rl *time.Ticker, client *http.Client, lc func(*Request) (e
 	return &r
 }
 
-func (this *ReqtifierImpl) Do(req *Request) (*http.Response, error) {
+func (this *ReqtifierImpl) Do(req *RequestImpl) (*http.Response, error) {
 	// wait for rate limiter to be ready
 	if this.RateLimiter != nil { <- this.RateLimiter.C }
 
@@ -180,8 +210,8 @@ func (this *ReqtifierImpl) Do(req *Request) (*http.Response, error) {
 	return resp, err
 }
 
-func (this *ReqtifierImpl) New(endpoint string) (*Request) {
-	return &Request{
+func (this *ReqtifierImpl) New(endpoint string) (Request) {
+	return &RequestImpl{
 		URLPath: endpoint,
 		Verb: GET,
 		QueryParams: url.Values{},
@@ -193,7 +223,7 @@ func (this *ReqtifierImpl) New(endpoint string) (*Request) {
 	}
 }
 
-func (this *Request) GetBody() (io.Reader, string) {
+func (this *RequestImpl) GetBody() (io.Reader, string) {
 	if this.body != nil {
 		// if we've resolved the body already, re-use it.
 		return &readOnlyReader{buffer: this.body.body}, this.body.mimetype
@@ -230,27 +260,27 @@ func (this *Request) GetBody() (io.Reader, string) {
 	}
 }
 
-func (this *Request) Path(path string) (*Request) {
+func (this *RequestImpl) Path(path string) (Request) {
 	this.URLPath = path
 	return this
 }
 
-func (this *Request) Method(v HttpVerb) (*Request) {
+func (this *RequestImpl) Method(v HttpVerb) (Request) {
 	this.Verb = v
 	return this
 }
 
-func (this *Request) Into(into ResponseUnmarshaller) (*Request) {
+func (this *RequestImpl) Into(into ResponseUnmarshaller) (Request) {
 	this.Response = append(this.Response, into)
 	return this
 }
 
-func (this *Request) JSONInto(into interface{}) (*Request) {
+func (this *RequestImpl) JSONInto(into interface{}) (Request) {
 	this.Response = append(this.Response, FromJSON(into))
 	return this
 }
 
-func (this *Request) XMLInto(into interface{}) (*Request) {
+func (this *RequestImpl) XMLInto(into interface{}) (Request) {
 	this.Response = append(this.Response, FromXML(into))
 	return this
 }
@@ -312,19 +342,19 @@ func stringify(i interface{}) (string, bool) {
 //   fmt.Stringer: omitted if nil, otherwise .String() is called, and output included verbatim.
 //   anything else: panic is called.
 
-func (this *Request) Arg(key string, value interface{}) (*Request) {
+func (this *RequestImpl) Arg(key string, value interface{}) (Request) {
 	return this.argDefaultHelper(key, value, nil, this.AutoParams)
 }
 
-func (this *Request) URLArg(key string, value interface{}) (*Request) {
+func (this *RequestImpl) URLArg(key string, value interface{}) (Request) {
 	return this.argDefaultHelper(key, value, nil, this.QueryParams)
 }
 
-func (this *Request) FormArg(key string, value interface{}) (*Request) {
+func (this *RequestImpl) FormArg(key string, value interface{}) (Request) {
 	return this.argDefaultHelper(key, value, nil, this.FormParams)
 }
 
-func (this *Request) FileArg(key, filename string, data io.Reader) (*Request) {
+func (this *RequestImpl) FileArg(key, filename string, data io.Reader) (Request) {
 	this.FormFiles[key] = append(this.FormFiles[key], FormFile{Name: filename, Data: data})
 	return this
 }
@@ -333,19 +363,19 @@ func (this *Request) FileArg(key, filename string, data io.Reader) (*Request) {
 // if nil is passed (see above), it is also omitted if it matches a provided default value,
 // or if the converted string matches that value (so 3 will match a default of either 3, or "3")
 
-func (this *Request) ArgDefault(key string, value, def interface{}) (*Request) {
+func (this *RequestImpl) ArgDefault(key string, value, def interface{}) (Request) {
 	return this.argDefaultHelper(key, value, def, this.AutoParams)
 }
 
-func (this *Request) URLArgDefault(key string, value, def interface{}) (*Request) {
+func (this *RequestImpl) URLArgDefault(key string, value, def interface{}) (Request) {
 	return this.argDefaultHelper(key, value, def, this.QueryParams)
 }
 
-func (this *Request) FormArgDefault(key string, value, def interface{}) (*Request) {
+func (this *RequestImpl) FormArgDefault(key string, value, def interface{}) (Request) {
 	return this.argDefaultHelper(key, value, def, this.FormParams)
 }
 
-func (this *Request) argDefaultHelper(key string, value, def interface{}, values url.Values) (*Request) {
+func (this *RequestImpl) argDefaultHelper(key string, value, def interface{}, values url.Values) (Request) {
 	if value != def {
 		if str, present := stringify(value); present && str != def {
 			values.Add(key, str)
@@ -354,32 +384,32 @@ func (this *Request) argDefaultHelper(key string, value, def interface{}, values
 	return this
 }
 
-func (this *Request) Header(key, value string) (*Request) {
+func (this *RequestImpl) Header(key, value string) (Request) {
 	this.Headers[strings.ToLower(key)] = value
 	return this
 }
 
-func (this *Request) Cookie(c *http.Cookie) (*Request) {
+func (this *RequestImpl) Cookie(c *http.Cookie) (Request) {
 	this.Cookies = append(this.Cookies, c)
 	return this
 }
 
-func (this *Request) BasicAuthentication(user, password string) (*Request) {
+func (this *RequestImpl) BasicAuthentication(user, password string) (Request) {
 	this.BasicUser = user
 	this.BasicPassword = password
 	return this
 }
 
-func (this *Request) Multipart() (*Request) {
+func (this *RequestImpl) Multipart() (Request) {
 	this.ForceMultipart = true
 	return this
 }
 
-func (this *Request) Target() (string) {
+func (this *RequestImpl) Target() (string) {
 	return this.ReqClient.Root + this.URLPath
 }
 
-func (this *Request) URL() (string) {
+func (this *RequestImpl) URL() (string) {
 	callURL := this.Target()
 	params := this.QueryParams.Encode()
 	if len(this.AutoParams) != 0 && this.Verb == GET {
@@ -401,7 +431,7 @@ func (this *Request) URL() (string) {
 // array and store it, and GetBody() will return the stored one later, rather
 // than re-resolving it. This is done because the body may be constructed from
 // external io.Readers which can't be seeked or re-read, only read once.
-func (this *Request) DebugPrint() (*Request) {
+func (this *RequestImpl) DebugPrint() (Request) {
 	reader, mimetype := this.GetBody()
 	body, err := ioutil.ReadAll(reader)
 	if err != nil { panic("Error reading request body: " + err.Error()) }
@@ -417,7 +447,7 @@ func (this *Request) DebugPrint() (*Request) {
 
 // Call this function to execute the call.
 // it can return a nil response if an error occurs.
-func (this *Request) Do() (*http.Response, error) {
+func (this *RequestImpl) Do() (*http.Response, error) {
 	if len(this.ReqClient.AgentName) != 0 {
 	        this.Header("User-Agent", this.ReqClient.AgentName)
 	}
