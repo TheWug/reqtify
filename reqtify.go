@@ -37,7 +37,11 @@ func (r *ResponseError) Error() string {
 	return r.StatusText
 }
 
-type Reqtifier struct {
+type Reqtifier interface {
+	New(string) (*Request)
+}
+
+type ReqtifierImpl struct {
 	Root         string
 	RateLimiter *time.Ticker
 	HttpClient  *http.Client
@@ -93,13 +97,13 @@ type Request struct {
 
 	Response     []ResponseUnmarshaller
 
-	ReqClient     *Reqtifier
+	ReqClient     *ReqtifierImpl
 
 	body          *cachedBody
 }
 
 func New(root string, rl *time.Ticker, client *http.Client, lc func(*Request) (error), agent string) (Reqtifier) {
-	r := Reqtifier{
+	r := ReqtifierImpl{
 		Root: root,
 		RateLimiter: rl,
 		HttpClient: client,
@@ -111,10 +115,10 @@ func New(root string, rl *time.Ticker, client *http.Client, lc func(*Request) (e
 		r.HttpClient = &http.Client{Transport: &http.Transport{} }
 	}
 
-	return r
+	return &r
 }
 
-func (this *Reqtifier) Do(req *Request) (*http.Response, error) {
+func (this *ReqtifierImpl) Do(req *Request) (*http.Response, error) {
 	// wait for rate limiter to be ready
 	if this.RateLimiter != nil { <- this.RateLimiter.C }
 
@@ -176,7 +180,7 @@ func (this *Reqtifier) Do(req *Request) (*http.Response, error) {
 	return resp, err
 }
 
-func (this *Reqtifier) New(endpoint string) (*Request) {
+func (this *ReqtifierImpl) New(endpoint string) (*Request) {
 	return &Request{
 		Path: endpoint,
 		Verb: GET,
