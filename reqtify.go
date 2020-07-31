@@ -83,7 +83,7 @@ type cachedBody struct {
 }
 
 type Request struct {
-	Path           string
+	URLPath        string
 	Verb           HttpVerb
 	QueryParams    url.Values
 	FormParams     url.Values
@@ -182,7 +182,7 @@ func (this *ReqtifierImpl) Do(req *Request) (*http.Response, error) {
 
 func (this *ReqtifierImpl) New(endpoint string) (*Request) {
 	return &Request{
-		Path: endpoint,
+		URLPath: endpoint,
 		Verb: GET,
 		QueryParams: url.Values{},
 		FormParams: url.Values{},
@@ -228,6 +228,11 @@ func (this *Request) GetBody() (io.Reader, string) {
 		}
 		return strings.NewReader(params), "application/x-www-form-urlencoded"
 	}
+}
+
+func (this *Request) Path(path string) (*Request) {
+	this.URLPath = path
+	return this
 }
 
 func (this *Request) Method(v HttpVerb) (*Request) {
@@ -371,11 +376,11 @@ func (this *Request) Multipart() (*Request) {
 }
 
 func (this *Request) Target() (string) {
-	return this.ReqClient.Root + this.Path
+	return this.ReqClient.Root + this.URLPath
 }
 
 func (this *Request) URL() (string) {
-	callURL := this.ReqClient.Root + this.Path
+	callURL := this.ReqClient.Root + this.URLPath
 	params := this.QueryParams.Encode()
 	if len(this.AutoParams) != 0 && this.Verb == GET {
 		if len(params) != 0 {
