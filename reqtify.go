@@ -35,7 +35,7 @@ type ResponseError struct {
 
 func (r *ResponseError) Error() string {
 	return r.StatusText
-}	
+}
 
 type Reqtifier struct {
 	Root         string
