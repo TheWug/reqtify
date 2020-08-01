@@ -69,6 +69,7 @@ type Request interface {
 
 	Target() (string)
 	URL() (string)
+	GetPath() (string)
 }
 
 type HttpRequester interface {
@@ -419,6 +420,10 @@ func (this *RequestImpl) Multipart() (Request) {
 
 func (this *RequestImpl) Target() (string) {
 	return this.ReqClient.Root + this.URLPath
+}
+
+func (this *RequestImpl) GetPath() (string) {
+	return this.URLPath
 }
 
 func (this *RequestImpl) URL() (string) {
