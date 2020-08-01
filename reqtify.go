@@ -71,10 +71,18 @@ type Request interface {
 	URL() (string)
 }
 
+type HttpRequester interface {
+	Do(req *http.Request) (*http.Response, error)
+	Get(url string) (resp *http.Response, err error)
+	Head(url string) (resp *http.Response, err error)
+	Post(url, contentType string, body io.Reader) (resp *http.Response, err error)
+	PostForm(url string, data url.Values) (resp *http.Response, err error)
+}
+
 type ReqtifierImpl struct {
 	Root         string
 	RateLimiter *time.Ticker
-	HttpClient  *http.Client
+	HttpClient   HttpRequester
 	LastChance   func(Request) error
 	AgentName    string
 }
@@ -141,7 +149,7 @@ func New(root string, rl *time.Ticker, client *http.Client, lc func(Request) (er
 		AgentName: agent,
 	}
 
-	if r.HttpClient == nil {
+	if client == nil {
 		r.HttpClient = &http.Client{Transport: &http.Transport{} }
 	}
 
