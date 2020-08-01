@@ -226,6 +226,10 @@ func (this *ReqtifierImpl) New(endpoint string) (Request) {
 func (this *RequestImpl) GetBody() (io.Reader, string) {
 	if this.body != nil {
 		// if we've resolved the body already, re-use it.
+		if this.body.body == nil {
+			return nil, ""
+		}
+
 		return &readOnlyReader{buffer: this.body.body}, this.body.mimetype
 	} else if this.ForceMultipart || len(this.FormFiles) != 0 {
 		var m multipartRequestBody
