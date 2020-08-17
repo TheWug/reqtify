@@ -1,6 +1,7 @@
 package reqtify
 
 import (
+	"bytes"
 	"time"
 	"io"
 	"net/http"
@@ -201,12 +202,13 @@ func (this *ReqtifierImpl) Do(req *RequestImpl) (*http.Response, error) {
 
 	// Packing into response, if we have one
 	if len(req.Response)!= 0 {
-		var body []byte
-		body, err = ioutil.ReadAll(resp.Body)
-		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return nil, err
 		}
+		resp.Body.Close()
+
+		resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 		for _, response := range req.Response {
 			e := response.Unmarshal(body)
 			if err != nil {
