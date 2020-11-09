@@ -200,6 +200,16 @@ func (this *ReqtifierImpl) Do(req *RequestImpl) (*http.Response, error) {
 		return nil, err
 	}
 
+	// try to close any closable formfiles passed to us
+	for _, list := range req.FormFiles {
+		for _, file := range list {
+			closer := file.Data.(io.ReadCloser)
+			if closer != nil {
+				closer.Close()
+			}
+		}
+	}
+
 	// Packing into response, if we have one
 	if len(req.Response)!= 0 {
 		body, err := ioutil.ReadAll(resp.Body)
